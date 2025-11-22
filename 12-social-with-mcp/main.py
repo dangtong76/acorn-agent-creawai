@@ -1,7 +1,12 @@
 from crewai.flow.flow import Flow, listen, start, router, and_, or_
 from pydantic import BaseModel
 from crewai import LLM # 
+from crewai.agent import Agent
 from dotenv import load_dotenv
+from content_eval_crew import ContentEvalCrew
+from tools import web_search_tool
+import os
+from datetime import datetime
 
 load_dotenv()
 
@@ -32,6 +37,7 @@ class ContentPipelineState(BaseModel):
     # INSTERNAL PARAMETER(STATE)
     max_characters: int = 0
     score: Score | None = None
+    research: str = ""
 
     # content
     blog_post: BlogPost | None = None
@@ -57,7 +63,16 @@ class ContentPipelineFlow(Flow[ContentPipelineState]):
     @listen(init_content_pipeline)
     def conduct_research(self):
         print(f"조사시작: {self.state.topic} 에 대해 조사를 시작합니다.")
-        return True
+        researcher = Agent(
+            role="조사 분석 전문가",
+            backstory="당신은 컨테츠 작성을 위해서 사전 조사하는 전문가 입니다. 조사 결과를 제공 합니다.",
+            goal=f"{self.state.topic} 에 대해 가능한 유용한 정보를 찾아서 조사를 시작합니다.",
+            tools=[web_search_tool]
+        )
+
+        self.state.research = researcher.kickoff(
+            f"{self.state.topic}에 대해 가능한 유용한 정보를 찾아서 조사를 시작하세요"
+        )
 
     @router(conduct_research)
     def conduct_research_router(self):
@@ -228,11 +243,61 @@ class ContentPipelineFlow(Flow[ContentPipelineState]):
     @listen(handle_make_blog_post)
     def check_seo(self):
         print("check_seo")
+        if isinstance(self.state.blog_post, BaseModel):
+            blog_post_value = self.state.blog_post.model_dump_json()
+        else:
+            blog_post_value = str(self.state.blog_post)
+        
+        result = (
+            ContentEvalCrew().seo_crew().kickoff(
+                inputs={
+                    "blog_post": blog_post_value, 
+                    "topic": self.state.topic
+                }
+            )
+        )
+
+        self.state.score = result.pydantic
 
 
     @listen(or_(handle_make_tweet_post, handle_make_linkedin_post))
     def check_virality(self):
         print("check_virality")
+
+        tweet_post_value = (
+            self.state.tweet_post.model_dump_json()
+            if isinstance(self.state.tweet_post, BaseModel )
+            else str(self.state.tweet_post)
+        )
+
+        linkedin_post_value = (
+            self.state.linkedin_post.model_dump_json()
+            if isinstance(self.state.linkedin_post, BaseModel )
+            else str(self.state.linkedin_post)
+        )
+
+        if self.state.content_type == "tweet":
+            result = (
+                ContentEvalCrew().virality_crew().kickoff(
+                    inputs={
+                        "content_type": self.state.content_type, 
+                        "content": tweet_post_value,
+                        "topic": self.state.topic
+                    }
+                )
+            )
+        elif self.state.content_type == "linkedin":
+            result = (
+                ContentEvalCrew().virality_crew().kickoff(
+                    inputs={
+                        "content_type": self.state.content_type, 
+                        "content": linkedin_post_value,
+                        "topic": self.state.topic
+                    }
+                )
+            )
+
+        self.state.score = result.pydantic
 
 
     @router(or_(check_seo, check_virality))
@@ -240,7 +305,7 @@ class ContentPipelineFlow(Flow[ContentPipelineState]):
         content_type = self.state.content_type
         score = self.state.score
 
-        if score > 8:
+        if score.score > 6:
             return "content_passed"
         else:
             if content_type == "blog":
@@ -256,6 +321,66 @@ class ContentPipelineFlow(Flow[ContentPipelineState]):
     @listen("content_passed")
     def complete_content_pipeline(self):
         print(f"컨텐츠 파이프라인 완료: {self.state.topic} 에 대해 작성을 완료 했습니다.")
+
+        # 출력할 디렉토리를 만들어
+        os.makedirs("output", exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        
+        if self.state.blog_post is not None:
+            blog = self.state.blog_post
+            if isinstance(blog, BaseModel):
+                title = blog.title,
+                subtitle = getattr(blog, "subtitle", "")
+                content = blog.content
+            else:
+                title = self.state.topic or "Blog Post"
+                subtitle = ""
+                content = str(blog)
+            blog_path = os.path.join("output", f"blog_post_{timestamp}.md")
+
+            with open(blog_path,"w", encoding="utf-8") as f:
+                f.write(f"# {title}\n\n")
+                if subtitle:
+                    f.write(f"## {subtitle}\n\n")
+                f.write(content)
+            print(f"[파일저장] Blog Post Done")
+
+        elif self.state.tweet_post is not None:
+            tweet = self.state.tweet_post
+            if isinstance(tweet, BaseModel):
+                content = tweet.content
+                hashtags = tweet.hashtags
+            else:
+                content = str(tweet)
+                hashtags = ""
+
+            tweet_path = os.path.join("output", f"tweet_post_{timestamp}.md")
+
+            with open(tweet_path,"w", encoding="utf-8") as f:
+                f.write(content.strip() + "\n\n")
+                if hashtags:
+                    f.write(hashtags.strip() + "\n")     
+            print(f"[파일저장] Tweet Post Done")
+
+        elif self.state.linkedin_post is not None:
+            linkedin = self.state.linkedin_post
+            if isinstance(linkedin, BaseModel):
+                content = blog.content
+                hashtags = linkedin.hashtags
+            else:
+                content = str(linkedin)
+                hashtags = ""
+
+            linkedin_path = os.path.join("output", f"linkedin_post_{timestamp}.md")
+
+            with open(linkedin_path,"w", encoding="utf-8") as f:
+                f.write(content.strip() + "\n\n")
+                if hashtags:
+                    f.write(hashtags.strip() + "\n")     
+            print(f"[파일저장] linkedin Post Done")
+        else:
+            print(f"Error: 지원하는 문서 타입이 아닙니다.")
+
         
     
 flow = ContentPipelineFlow()
@@ -263,9 +388,18 @@ flow = ContentPipelineFlow()
 
 # flow.plot()
 
-flow.kickoff(
-    inputs={
-        "content_type": "tweet",
-        "topic": "AI and Job Security"
-    }
-)
+# flow.kickoff(
+#     inputs={
+#         "content_type": "tweet",
+#         "topic": "AI and Job Security"
+#     }
+# )
+
+for post_type in ("tweet", "blog", "linkedin"):
+    flow = ContentPipelineFlow() ### --> missing 
+    flow.kickoff(
+        inputs={
+            "content_type": post_type,
+            "topic": "AI and Job Security",
+        }
+    )

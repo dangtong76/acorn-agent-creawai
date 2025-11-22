@@ -2,6 +2,7 @@ from crewai.flow.flow import Flow, listen, start, router, and_, or_
 from pydantic import BaseModel
 from crewai import LLM # 
 from dotenv import load_dotenv
+from content_eval_crew import ContentEvalCrew
 
 load_dotenv()
 
@@ -32,6 +33,7 @@ class ContentPipelineState(BaseModel):
     # INSTERNAL PARAMETER(STATE)
     max_characters: int = 0
     score: Score | None = None
+    research: str = ""
 
     # content
     blog_post: BlogPost | None = None
@@ -228,11 +230,61 @@ class ContentPipelineFlow(Flow[ContentPipelineState]):
     @listen(handle_make_blog_post)
     def check_seo(self):
         print("check_seo")
+        if isinstance(self.state.blog_post, BaseModel):
+            blog_post_value = self.state.blog_post.model_dump_json()
+        else:
+            blog_post_value = str(self.state.blog_post)
+        
+        result = (
+            ContentEvalCrew().seo_crew().kickoff(
+                inputs={
+                    "blog_post": blog_post_value, 
+                    "topic": self.state.topic
+                }
+            )
+        )
+
+        self.state.score = result.pydantic
 
 
     @listen(or_(handle_make_tweet_post, handle_make_linkedin_post))
     def check_virality(self):
         print("check_virality")
+
+        tweet_post_value = (
+            self.state.tweet_post.model_dump_json()
+            if isinstance(self.state.tweet_post, BaseModel )
+            else str(self.state.tweet_post)
+        )
+
+        linkedin_post_value = (
+            self.state.linkedin_post.model_dump_json()
+            if isinstance(self.state.linkedin_post, BaseModel )
+            else str(self.state.linkedin_post)
+        )
+
+        if self.state.content_type == "tweet":
+            result = (
+                ContentEvalCrew().virality_crew().kickoff(
+                    inputs={
+                        "content_type": self.state.content_type, 
+                        "content": tweet_post_value,
+                        "topic": self.state.topic
+                    }
+                )
+            )
+        elif self.state.content_type == "linkedin":
+            result = (
+                ContentEvalCrew().virality_crew().kickoff(
+                    inputs={
+                        "content_type": self.state.content_type, 
+                        "content": linkedin_post_value,
+                        "topic": self.state.topic
+                    }
+                )
+            )
+
+        self.state.score = result.pydantic
 
 
     @router(or_(check_seo, check_virality))
@@ -240,7 +292,7 @@ class ContentPipelineFlow(Flow[ContentPipelineState]):
         content_type = self.state.content_type
         score = self.state.score
 
-        if score > 8:
+        if score.score > 6:
             return "content_passed"
         else:
             if content_type == "blog":
@@ -263,9 +315,18 @@ flow = ContentPipelineFlow()
 
 # flow.plot()
 
-flow.kickoff(
-    inputs={
-        "content_type": "tweet",
-        "topic": "AI and Job Security"
-    }
-)
+# flow.kickoff(
+#     inputs={
+#         "content_type": "tweet",
+#         "topic": "AI and Job Security"
+#     }
+# )
+
+for post_type in ("tweet", "blog", "linkedin"):
+    flow = ContentPipelineFlow() ### --> missing 
+    flow.kickoff(
+        inputs={
+            "content_type": post_type,
+            "topic": "AI and Job Security",
+        }
+    )

@@ -8,5 +8,6 @@ dependencies = [
     "crewai>=1.4.1",
     "crewai-tools>=1.4.1",
     "dotenv>=0.9.9",
+    "firecrawl>=4.8.0",
     "ipykernel>=7.1.0",
 ]
