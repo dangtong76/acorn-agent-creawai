@@ -1,0 +1,16 @@
+translate_task:
+  description: >
+    {sentence}을 유창하고 전문적인 한국어로 번역합니다.
+    키노트 발표에 어울리는 격식 있는 어조를 유지하고,
+    화자 이름과 섹션 구조를 그대로 존중해야 합니다.
+  expected_output: >
+    {sentence}에 대한 잘 다음어진 한국어 번역문장
+  agent: translator_agent
+
+counter_task:
+  description: >
+    count_words 도구를 사용하여 문장 {sentence}의 정확한 단어 수를 계산합니다.
+    반드시 count_words 도구를 호출하여 결과를 정수 형태로 반환해야 합니다.
+  expected_output: >
+    단어 수를 나타내는 하나의 정수 (예: "9")
+  agent: counter_agent
