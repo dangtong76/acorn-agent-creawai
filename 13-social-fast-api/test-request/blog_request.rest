@@ -1,0 +1,6 @@
+POST http://localhost:8000/content/blog
+Content-Type:application/json
+
+{
+    "topic":"AI and Job Security","content_length":800,"instruction":"제발 최신정보를 검색해서 작성해줘"
+}

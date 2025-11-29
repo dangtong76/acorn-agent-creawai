@@ -1,0 +1,57 @@
+seo_expert_task:
+  description: >
+    블로그 글의 SEO 효율성을 분석하고 다음 내용을 제공하시오:
+            
+    1. SEO 점수(0~10점):
+        - 키워드 최적화
+        - 제목(타이틀) 효과성
+        - 콘텐츠 구조 (헤더, 문단 구성)
+        - 콘텐츠 길이와 품질
+        - 가독성
+        - 검색 의도와의 일치 정도
+        - 출처(Reference) 명시 여부, URL 형식으로 출처 명시 여부
+
+    2. 점수에 대한 명확한 근거:
+        - 점수(Score)가 높을 경우: 주요 강점
+        - 점수(Score)가 낮을 경우: 반드시 개선해야 할 치명적 약점
+        - 점수(Score)에 가장 큰 영향을 준 핵심 요소
+
+    분석할 블로그 글: {blog_post}
+    타겟 주제: {topic}
+
+  expected_output: >
+    Score 객체 (Pydantic 기반)로 출력:
+    - score: SEO 품질을 0~10 사이 정수로 평가
+    - reason: 점수에 영향을 준 핵심 요인을 설명한 문자열
+
+  agent: seo_expert_agent
+
+virality_expert_task:
+  description: >
+    소셜 미디어 콘텐츠의 바이럴 가능성을 분석하고 다음 내용을 제공하시오:
+            
+    1. 0~10점 사이의 바이럴 점수 (평가 기준)
+       - 훅(Hook)의 강도 및 주목도
+       - 감정적 공감 및 공감대 형성 요소
+       - 공유 가능성(Shareability)
+       - CTA(Call-to-action)의 효과
+       - 플랫폼별 베스트 프랙티스 준수 여부
+       - 트렌드와의 정합성
+       - 콘텐츠 형식 최적화 정도
+       - 출처(Reference) 명시 여부, URL 형식으로 출처 명시 여부
+
+    2. 점수에 대한 명확한 사유
+       - 점수가 높은 경우: 어떤 요소가 바이럴 가능성을 높였는지
+       - 점수가 낮은 경우: 바이럴에 필요한 핵심 요소가 무엇이 빠졌는지
+       - 가장 우선적으로 개선해야 할 단 하나의 요소
+
+    분석할 콘텐츠: {content}
+    콘텐츠 유형: {content_type}
+    타깃 주제: {topic}
+
+  expected_output: >
+    Score 객체 (Pydantic 기반)로 출력:
+    - score: 0~10 사이의 바이럴 점수
+    - reason: 바이럴 가능성에 영향을 미치는 주요 요인의 설명
+
+  agent: virality_expert_agent
